@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <string>
 using namespace std;
 
 class Matrix {
@@ -8,18 +9,18 @@ class Matrix {
     int height;
     int width;
     int scaler;
-    char** matrix;
+    wchar_t** matrix;
 
     void SetScaler(int scaler=1) {
         this->scaler = scaler;
     }
 
-    char** createEmptyMatrix() {
-        char** matrix = new char*[height];
+    wchar_t** createEmptyMatrix() {
+        wchar_t** matrix = new wchar_t*[height];
         for (int i = 0; i < height; i++) {
-            matrix[i] = new char[width];
+            matrix[i] = new wchar_t[width];
             for (int j = 0; j < width; j++) {
-                matrix[i][j] = ' ';
+                matrix[i][j] = L' ';
             }
         }
         return matrix;
@@ -29,7 +30,7 @@ class Matrix {
         for (int i = 0; i < height; i++) {
             for (int j = 0; j < width; j++) {
                 if (i == 0 || i == height-1 || j == 0 || j == width-1) {
-                    matrix[i][j] = '*';
+                    matrix[i][j] = L'*';
                 }
             }
         }
@@ -38,9 +39,9 @@ class Matrix {
     void printMatrix() {
         for (int i = 0; i < height; i++) {
             for (int j = 0; j < width; j++) {
-                cout << matrix[i][j];
+                wcout << matrix[i][j];
             }
-            cout << endl;
+            wcout << endl;
         }
     }
 

@@ -1,195 +1,101 @@
-#include <iostream>
-#include <vector>
-#include <iomanip>
-#include <random>
-#include <string>
-#include <cstring>
-#include <ctime>
 #include <cstdlib>
-#include <cmath>
-#include <algorithm>
-#include <fstream>
-#include <cstdio>
-#include <limits>
+#include <iostream>
+#include <clocale>
+#include <locale>
 #include <sstream>
-#include "llm_client.h"
-#include "ascii_art.h"
-#include "badger_variants.h"
-#include "utils.h"
-#include "matrix.h"
+#include <string>
+#include <vector>
 
+#include "cat_simulation.h"
+#include "field_bubbles.h"
+#include "llm_client.h"
+#include "matrix.h"
+#include "utils.h"
 
 using namespace std;
 
-Matrix* matrix_g = nullptr;
-int height = 64;
-int width = 206;
+namespace {
 
-int randX() {
-    return rand() % (height - 10) + 1;
-}
-int randY() {
-    return rand() % (width - 10) + 1;
-}
-
-class Point {
-    public:
-        int x;
-        int y;
-    
-    Point() {
-        this->x = randX();
-        this->y = randY();
+void clearInterior(Matrix& matrix) {
+    for (int row = 1; row < matrix.height - 1; ++row) {
+        for (int col = 1; col < matrix.width - 1; ++col) {
+            matrix.matrix[row][col] = L' ';
+        }
     }
-    Point( int x,int y) {
-        this->x = x;
-        this->y = y;
-    }
-    
-};
-
-
-Point randP() {
-    return Point(randX(), randY());
 }
 
-
-bool CreareArt(Point point) {
-    char** matrix = matrix_g->matrix;
-    const auto& variants = getBadgerVariants();
-    const auto& art = variants[rand() % variants.size()];
-    int height = matrix_g->height;
-    int width = matrix_g->width;
-    const int spacing = 3;
-    
-    int art_height = static_cast<int>(art.size());
-    int art_width = 0;
-    for (const string& line : art) {
-        art_width = max(art_width, static_cast<int>(line.length()));
-    }
-    
-    int x = point.x;
-    int y = point.y;
-    
-    // Check if art fits within matrix boundaries
-    if (x < 0 || y < 0 || 
-        x + art_height > height || 
-        y + art_width > width) {
-        return false;
-    }
-    
-    // Check for overlaps and keep a minimum spacing around each badger
-    int top = max(1, x - spacing);
-    int bottom = min(height - 2, x + art_height - 1 + spacing);
-    int left = max(1, y - spacing);
-    int right = min(width - 2, y + art_width - 1 + spacing);
-
-    for (int row = top; row <= bottom; row++) {
-        for (int col = left; col <= right; col++) {
-            if (matrix[row][col] != ' ' && matrix[row][col] != '\0') {
-                return false;
+void drawCat(Matrix& matrix, const Cat& cat) {
+    for (size_t i = 0; i < cat.sprite.size(); ++i) {
+        for (size_t j = 0; j < cat.sprite[i].length(); ++j) {
+            char pixel = cat.sprite[i][j];
+            if (pixel != ' ') {
+                setCell(matrix, cat.row + static_cast<int>(i), cat.col + static_cast<int>(j), static_cast<unsigned char>(pixel));
             }
         }
     }
-    
-    // Place the art
-    for (int i = 0; i < art_height; i++) {
-        for (int j = 0; j < static_cast<int>(art[i].length()); j++) {
-            if (x + i < height && y + j < width) {
-                matrix[x + i][y + j] = art[i][j];
-            }
-        }
-    }
-    
-    return true;
 }
 
+void render(Matrix& matrix, const vector<Cat>& cats, int tick) {
+    clearInterior(matrix);
+    matrix.FillMartixBorder();
 
-void LLM() {
-    LLMClient client("127.0.0.1", 1234, "/v1/chat/completions");
-    
-    if (!client.connect()) {
-        cerr << "Не удалось подключиться к серверу" << endl;
-        cerr << "Убедитесь, что LLM Studio запущен на порту 1234" << endl;
-        return ;
+    for (const Cat& cat : cats) {
+        drawCat(matrix, cat);
     }
-    
-    cout << "\n========================================" << endl;
-    cout << "   Клиент для LLM Studio (Gemma-3-4B)" << endl;
-    cout << "   Сервер: 127.0.0.1:1234" << endl;
-    cout << "   Введите 'exit' для выхода" << endl;
-    cout << "========================================\n" << endl;
-    
-    string input;
-    while (true) {
-        cout << "Запрос: ";
-        getline(cin, input);
-        
-        if (input == "exit" || input == "quit" || input == "q") {
-            break;
-        }
-        
-        if (input.empty()) {
-            continue;
-        }
-        
-        cout << "Ответ: ";
-        
-        // Отправляем запрос и выводим ответ
-        string response = client.sendRequest(input);
-        cout << response << endl;
-        cout << "----------------------------------------" << endl;
-    }
-    
-    client.disconnect();
-    cout << "\nДо свидания!" << endl;
-    
-    return ;
+    renderSpeechBubbles(matrix, cats);
+
+    clearScreen();
+    wcout << L"Симуляция кошачьего двора" << endl;
+    wcout << L"Котики гуляют, останавливаются и болтают друг с другом." << endl;
+    wcout << L"Такт: " << tick << endl << endl;
+    matrix.printMatrix();
 }
+
+}  // namespace
+
 int main() {
+    std::setlocale(LC_ALL, "");
+    std::locale::global(std::locale(""));
+    std::wcout.imbue(std::locale());
+
+    int height = 64;
+    int width = 207;
     string input;
+    LLMClient client("127.0.0.1", 1234, "/v1/chat/completions");
 
     cout << "Введите высоту окна [64]: ";
     getline(cin, input);
     if (!input.empty()) {
         istringstream heightStream(input);
         heightStream >> height;
-        height = 62;
     }
 
     cout << "Введите ширину окна [207]: ";
     getline(cin, input);
-    width = 207;
     if (!input.empty()) {
         istringstream widthStream(input);
         widthStream >> width;
     }
 
-    if (height < 12) {
-        height = 12;
+    if (height < 20) {
+        height = 20;
     }
-    if (width < 20) {
-        width = 20;
+    if (width < 70) {
+        width = 70;
     }
 
-    matrix_g = new Matrix(height, width);
-
-    // LLM();
-
+    Matrix matrix(height, width);
+    vector<Cat> cats = createCats(height, width);
 
     srand(0);
-    matrix_g->FillMartixBorder();
-  
+    int tick = 0;
     while (true) {
-        if (!CreareArt(randP())){
-            continue;
-        }
-        clearScreen();
-        flushTerminal();
-        matrix_g->printMatrix();
-        sleep_ms(1000); // настройка таймингов
-        
-
+        ++tick;
+        moveCats(cats, height, width);
+        updateConversation(cats, tick, &client);
+        render(matrix, cats, tick);
+        sleep_ms(700);
     }
+
     return 0;
 }

@@ -9,6 +9,12 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <sstream>
+#include <vector>
+
+struct ChatMessage {
+    std::string role;
+    std::string content;
+};
 
 class LLMClient {
 private:
@@ -17,14 +23,24 @@ private:
     int port;
     std::string endpoint;
     
+    std::string formatMessagesJSON(const std::vector<ChatMessage>& messages) {
+        std::ostringstream json;
+        for (size_t i = 0; i < messages.size(); ++i) {
+            if (i > 0) {
+                json << ",";
+            }
+            json << "{\"role\": \"" << escapeJSON(messages[i].role) << "\", \"content\": \""
+                 << escapeJSON(messages[i].content) << "\"}";
+        }
+        return json.str();
+    }
+
     // Формируем JSON-запрос для Gemma
-    std::string formatGemmaRequest(const std::string& text) {
+    std::string formatGemmaRequest(const std::vector<ChatMessage>& messages) {
         std::ostringstream json;
         json << "{";
         json << "\"model\": \"google/gemma-3-4b\",";
-        json << "\"messages\": [";
-        json << "{\"role\": \"user\", \"content\": \"" << escapeJSON(text) << "\"}";
-        json << "],";
+        json << "\"messages\": [" << formatMessagesJSON(messages) << "],";
         json << "\"max_tokens\": 500,";
         json << "\"temperature\": 0.7";
         json << "}";
@@ -178,7 +194,7 @@ public:
         return true;
     }
     
-    std::string sendRequest(const std::string& text) {
+    std::string sendChat(const std::vector<ChatMessage>& messages) {
         if (sock >= 0) {
             disconnect();
         }
@@ -187,7 +203,7 @@ public:
             return "Ошибка: не удалось подключиться к LLM серверу";
         }
 
-        std::string jsonBody = formatGemmaRequest(text);
+        std::string jsonBody = formatGemmaRequest(messages);
         std::string httpRequest = formatHTTPRequest(jsonBody);
         
         // Отправляем запрос
@@ -225,6 +241,10 @@ public:
         // std::cerr << "Raw response: " << httpBody << std::endl;
         
         return extractResponseFromJSON(httpBody);
+    }
+
+    std::string sendRequest(const std::string& text) {
+        return sendChat({{"user", text}});
     }
     
     void disconnect() {
