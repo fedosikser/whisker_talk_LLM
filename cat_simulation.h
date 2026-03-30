@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "llm_client.h"
+#include "world_map.h"
 
 struct Cat {
     std::string name;
@@ -39,22 +40,19 @@ inline int catBubbleAnchor(const Cat& cat) {
 }
 
 inline std::vector<Cat> createCats(int fieldHeight, int fieldWidth) {
-    int maxRow = std::max(2, fieldHeight - 5);
-    int maxCol = std::max(2, fieldWidth - 12);
-
     return {
         {"Мисо", "scout", "curious",
             {" /\\_/\\\\", "( o.o )", " > ^ < "},
-            std::min(6, maxRow), std::min(10, maxCol), 1, 1, 0, 0, ""},
+            std::min(6, fieldHeight - 5), std::min(12, fieldWidth - 12), 1, 1, 0, 0, ""},
         {"Нори", "poet", "dreamy",
             {" /\\_/\\\\", "( -.- )", " /   \\\\"},
-            std::min(16, maxRow), std::min(40, maxCol), 1, -1, 0, 0, ""},
+            std::min(14, fieldHeight - 5), std::min(32, fieldWidth - 12), 1, -1, 0, 0, ""},
         {"Пип", "tinkerer", "playful",
             {" /\\_/\\\\", "( o.o )", " /|_|\\\\"},
-            std::min(24, maxRow), std::min(70, maxCol), -1, 1, 0, 0, ""},
+            std::min(26, fieldHeight - 5), std::min(74, fieldWidth - 12), -1, 1, 0, 0, ""},
         {"Тави", "guardian", "calm",
             {" /\\_/\\\\", "( o.o )", " /_|_\\\\"},
-            std::min(34, maxRow), std::min(100, maxCol), -1, -1, 0, 0, ""}
+            std::min(38, fieldHeight - 5), std::min(132, fieldWidth - 12), -1, -1, 0, 0, ""}
     };
 }
 
@@ -72,7 +70,46 @@ inline bool catsOverlap(const Cat& a, int nextRow, int nextCol, const Cat& b) {
     return !(aRight + 2 < bLeft || bRight + 2 < aLeft || aBottom + 1 < bTop || bBottom + 1 < aTop);
 }
 
-inline void moveCats(std::vector<Cat>& cats, int fieldHeight, int fieldWidth) {
+inline bool catHitsBlockedTile(const Cat& cat, int row, int col, const WorldMap& map) {
+    for (size_t i = 0; i < cat.sprite.size(); ++i) {
+        for (size_t j = 0; j < cat.sprite[i].length(); ++j) {
+            if (cat.sprite[i][j] == ' ') {
+                continue;
+            }
+            int currentRow = row + static_cast<int>(i);
+            int currentCol = col + static_cast<int>(j);
+            if (currentRow < 0 || currentCol < 0 || currentRow >= map.height || currentCol >= map.width) {
+                return true;
+            }
+            if (map.blocked[currentRow][currentCol]) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+inline void placeCatsOnOpenTiles(std::vector<Cat>& cats, const WorldMap& map) {
+    for (Cat& cat : cats) {
+        if (!catHitsBlockedTile(cat, cat.row, cat.col, map)) {
+            continue;
+        }
+
+        bool placed = false;
+        for (int row = 1; row < map.height - catHeight(cat) - 1 && !placed; ++row) {
+            for (int col = 1; col < map.width - catWidth(cat) - 1; ++col) {
+                if (!catHitsBlockedTile(cat, row, col, map)) {
+                    cat.row = row;
+                    cat.col = col;
+                    placed = true;
+                    break;
+                }
+            }
+        }
+    }
+}
+
+inline void moveCats(std::vector<Cat>& cats, int fieldHeight, int fieldWidth, const WorldMap& map) {
     for (size_t i = 0; i < cats.size(); ++i) {
         Cat& cat = cats[i];
         if (cat.pauseTimer > 0) {
@@ -90,6 +127,14 @@ inline void moveCats(std::vector<Cat>& cats, int fieldHeight, int fieldWidth) {
         if (nextCol <= 1 || nextCol + catWidth(cat) >= fieldWidth - 1) {
             cat.dCol *= -1;
             nextCol = cat.col + cat.dCol;
+        }
+        if (catHitsBlockedTile(cat, nextRow, nextCol, map)) {
+            cat.dRow = (std::rand() % 3) - 1;
+            cat.dCol = (std::rand() % 3) - 1;
+            if (cat.dRow == 0 && cat.dCol == 0) {
+                cat.dCol = 1;
+            }
+            continue;
         }
 
         bool blocked = false;

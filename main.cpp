@@ -11,18 +11,11 @@
 #include "llm_client.h"
 #include "matrix.h"
 #include "utils.h"
+#include "world_map.h"
 
 using namespace std;
 
 namespace {
-
-void clearInterior(Matrix& matrix) {
-    for (int row = 0; row < matrix.height; ++row) {
-        for (int col = 0; col < matrix.width; ++col) {
-            matrix.matrix[row][col] = L' ';
-        }
-    }
-}
 
 void drawCat(Matrix& matrix, const Cat& cat) {
     for (size_t i = 0; i < cat.sprite.size(); ++i) {
@@ -36,8 +29,8 @@ void drawCat(Matrix& matrix, const Cat& cat) {
     }
 }
 
-void render(Matrix& matrix, const vector<Cat>& cats, int tick) {
-    clearInterior(matrix);
+void render(Matrix& matrix, const WorldMap& map, const vector<Cat>& cats, int tick) {
+    drawWorldMap(matrix, map);
 
     for (const Cat& cat : cats) {
         drawCat(matrix, cat);
@@ -84,16 +77,18 @@ int main() {
     }
 
     Matrix matrix(height, width);
+    WorldMap map = createStardewMap(height, width);
     vector<Cat> cats = createCats(height, width);
+    placeCatsOnOpenTiles(cats, map);
     LLMClient client("127.0.0.1", 1234, "/v1/chat/completions");
 
     srand(0);
     int tick = 0;
     while (true) {
         ++tick;
-        moveCats(cats, height, width);
+        moveCats(cats, height, width, map);
         updateConversation(cats, tick, &client);
-        render(matrix, cats, tick);
+        render(matrix, map, cats, tick);
         sleep_ms(700);
     }
 
