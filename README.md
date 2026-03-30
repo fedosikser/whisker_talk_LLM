@@ -10,7 +10,7 @@
 ## Сборка
 
 ```bash
-g++ -std=c++17 -Wall -Wextra -pedantic main.cpp -o main
+g++  main.cpp -o main
 ```
 
 ## Запуск
